@@ -1,0 +1,16 @@
+[project]
+name = "secondtry"
+version = "0.1.0"
+description = "My project description."
+authors = ["Your Name <you@example.com>"]
+
+# Dependencies
+dependencies = [
+    "discord.py",
+    "tinydb"
+]
+
+[project.optional-dependencies]
+dev = [
+    "black"
+]
