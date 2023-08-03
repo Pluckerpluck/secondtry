@@ -4,9 +4,11 @@ import tinydb
 from tinydb.table import Document
 
 
-db = tinydb.TinyDB("./data/datastore.json")
+db = tinydb.TinyDB("data/datastore.json")
 
 from secondtry.context import RosterMessageInfo
+
+
 
 
 # async def get_roster_docs() -> dict[int, RosterMessageInfo]:

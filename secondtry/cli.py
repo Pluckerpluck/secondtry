@@ -33,8 +33,6 @@ async def on_ready():
         # We need to add the view to the client so it can process the interactions
         ctx.client.add_view(roster.view)
 
-        # Ensure the roster message is up to date
-        await roster.update_roster_message()
 
 
 async def cli():

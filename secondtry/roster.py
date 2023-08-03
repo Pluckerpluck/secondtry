@@ -6,6 +6,10 @@ from secondtry.context import RosterMessageInfo
 from secondtry import datastore
 import secondtry.context as ctx
 
+import logging
+
+log = logging.getLogger(__name__)
+
 ROLE_NAME = "Second Try"
 AVAILABLE_EMOJI = "✅"
 MAYBE_EMOJI = "❔"
@@ -100,9 +104,8 @@ class Roster:
             await datastore.update_member_status(self._guild, member, status)
         else:
             self.member_statuses[str(member.id)] = status
-            
-        if update:
-            await self.update_roster_message()
+            if update:
+                await self.update_roster_message()
 
     async def update_all_member_statuses(self, statuses: dict[str, str]):
         """Update all member statuses."""
@@ -183,6 +186,7 @@ class Roster:
         """Update the roster message with the new embed."""
         assert self.message is not None
         embed = await self.create_embed()
+        log.info(f"Updating roster message: {self.message.id}")
         await self.message.edit(embed=embed, view=self.view, content=None)
 
     @classmethod
