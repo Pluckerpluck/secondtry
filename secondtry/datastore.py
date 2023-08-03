@@ -4,7 +4,7 @@ import tinydb
 from tinydb.table import Document
 
 
-db = tinydb.TinyDB("datastore.json")
+db = tinydb.TinyDB("./data/datastore.json")
 
 from secondtry.context import RosterMessageInfo
 
