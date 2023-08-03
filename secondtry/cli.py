@@ -12,12 +12,14 @@ import secondtry.commands
 import secondtry.context as ctx
 from secondtry.roster import Roster
 from secondtry import datastore
+import os
 
 
 @ctx.event
 async def on_ready():
     """When the bot is ready, start the CLI and hook up the roster views."""
-    asyncio.create_task(cli())
+    if os.environ.get("CLI") == "1":
+        asyncio.create_task(cli())
 
     for guild in ctx.client.guilds:
         roster_info = await datastore.get_roster_message_id(guild)
