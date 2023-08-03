@@ -9,7 +9,8 @@ authors = [
 # Dependencies
 dependencies = [
     "discord.py",
-    "tinydb"
+    "tinydb",
+    "aioconsole",
 ]
 
 [project.optional-dependencies]
