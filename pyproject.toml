@@ -2,7 +2,9 @@
 name = "secondtry"
 version = "0.1.0"
 description = "My project description."
-authors = ["Your Name <you@example.com>"]
+authors = [
+    { name = "Samuel Gillespie", email = "you@example.com" }
+]
 
 # Dependencies
 dependencies = [
