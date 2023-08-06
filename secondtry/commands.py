@@ -145,6 +145,10 @@ async def static_role(interaction: discord.Interaction, role: discord.Role):
     # Update the roster
     await datastore.force_update(interaction.guild)
 
+    await interaction.response.send_message(
+        f"Static role set to: {role.mention}", ephemeral=True, delete_after=5
+    )
+
 
 @ctx.command(name="adminrole", description="Send the role required to run admin commands.")
 @ctx.is_admin
