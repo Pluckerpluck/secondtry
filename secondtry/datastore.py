@@ -9,8 +9,6 @@ db = tinydb.TinyDB("data/datastore.json")
 from secondtry.context import RosterMessageInfo
 
 
-
-
 # async def get_roster_docs() -> dict[int, RosterMessageInfo]:
 #     """Get all roster documents from the datastore."""
 #     rosters = {}
@@ -41,29 +39,6 @@ async def get_guild_doc(guild: discord.Guild) -> Document:
     assert isinstance(doc, Document)
 
     return doc
-
-
-async def save_roster_role(guild: discord.Guild, role: discord.Role):
-    """Save the role required to be included in the roster."""
-    doc = await get_guild_doc(guild)
-    doc["roster_role"] = role.id
-    db.update(doc, doc_ids=[guild.id])
-
-
-async def get_roster_role(guild: discord.Guild) -> discord.Role | None:
-    """Get the roster role from the datastore."""
-    doc = db.get(doc_id=guild.id)
-    if doc is None:
-        return None
-
-    assert isinstance(doc, Document)
-
-    role_id = doc.get("roster_role")
-
-    if role_id is None:
-        return None
-
-    return guild.get_role(role_id)
 
 
 async def save_roster_message_id(guild: discord.Guild, message: discord.Message):
@@ -111,6 +86,13 @@ async def register_status_observer(
     """
     OBSERVERS[guild.id] = callback
 
+async def force_update(guild: discord.Guild):
+    """Force an update of the roster."""
+    if guild.id not in OBSERVERS:
+        return
+
+    doc = await get_guild_doc(guild)
+    await OBSERVERS[guild.id](doc.get("member_statuses", {}))
 
 async def update_member_status(
     guild: discord.Guild, member: discord.Member, status: str, quiet: bool = False
@@ -127,7 +109,7 @@ async def update_member_status(
     db.update(doc, doc_ids=[guild.id])
 
     # Notify the observer
-    if not quiet:
+    if not quiet and guild.id in OBSERVERS:
         await OBSERVERS[guild.id](member_statuses)
 
 
@@ -156,3 +138,69 @@ async def get_member_statues(guild: discord.Guild) -> dict[str, str]:
     """Get the member statuses."""
     doc = await get_guild_doc(guild)
     return doc.get("member_statuses", {})
+
+
+async def set_reminder_time(guild: discord.Guild, day: str, hour: int, minute: int):
+    """Set the reminder time."""
+    doc = await get_guild_doc(guild)
+    doc["reminder_time"] = {"day": day, "hour": hour, "minute": minute}
+    db.update(doc, doc_ids=[guild.id])
+
+
+class ReminderTime(typing.TypedDict):
+    day: str
+    hour: int
+    minute: int
+
+
+async def get_reminder_time(guild: discord.Guild) -> ReminderTime | None:
+    """Get the reminder time."""
+    doc = await get_guild_doc(guild)
+    return doc.get("reminder_time")
+
+
+async def set_static_role(guild: discord.Guild, role: discord.Role):
+    """Set the static role ID."""
+    doc = await get_guild_doc(guild)
+    
+    # Delete the member statuses if they exist
+    if "member_statuses" in doc:
+        del doc["member_statuses"]
+
+    doc["static_role"] = role.id
+    db.update(doc, doc_ids=[guild.id])
+
+
+async def get_static_role(guild: discord.Guild) -> discord.Role | None:
+    """Get the static role ID."""
+    doc = await get_guild_doc(guild)
+
+    role_id = doc.get("static_role")
+
+    if role_id is None:
+        return None
+
+    return guild.get_role(role_id)
+
+async def set_admin_role(guild: discord.Guild, role: discord.Role):
+    """Set the admin role ID."""
+    doc = await get_guild_doc(guild)
+    
+    # Delete the member statuses if they exist
+    if "member_statuses" in doc:
+        del doc["member_statuses"]
+
+    doc["admin_role"] = role.id
+    db.update(doc, doc_ids=[guild.id])
+
+
+async def get_admin_role(guild: discord.Guild) -> discord.Role | None:
+    """Get the admin role ID."""
+    doc = await get_guild_doc(guild)
+
+    role_id = doc.get("admin_role")
+
+    if role_id is None:
+        return None
+
+    return guild.get_role(role_id)

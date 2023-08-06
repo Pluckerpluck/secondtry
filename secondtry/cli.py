@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from secondtry.cronjobs import start_cron_jobs, add_weekly_job, WeeklyCronJob
+
 logging.basicConfig(level=logging.INFO)
 
 import aioconsole
@@ -14,6 +16,28 @@ from secondtry.roster import Roster
 from secondtry import datastore
 import os
 
+async def load_roster_message(guild: discord.Guild) -> bool:
+    roster_info = await datastore.get_roster_message_id(guild)
+
+    # If there is no roster message, we skip this guild
+    if roster_info is None:
+        return False
+
+    roster = await Roster.from_roster_info(roster_info)
+
+    # We need to add the view to the client so it can process the interactions
+    ctx.client.add_view(roster.view)
+
+    return True
+
+async def schedule_reminder_cronjob(guild: discord.Guild):
+    reminder_timer = await datastore.get_reminder_time(guild)
+
+    if reminder_timer is None:
+        return
+    
+    # Schedule the cronjob
+    await add_weekly_job(reminder_timer.day, reminder_timer.hour, reminder_timer.minute, None)
 
 @ctx.event
 async def on_ready():
@@ -21,19 +45,17 @@ async def on_ready():
     if os.environ.get("CLI") == "1":
         asyncio.create_task(cli())
 
-    for guild in ctx.client.guilds:
-        roster_info = await datastore.get_roster_message_id(guild)
+    asyncio.create_task(start_cron_jobs())
 
-        # If there is no roster message, we skip this guild
-        if roster_info is None:
+    for guild in ctx.client.guilds:
+        # First we load any active roster messages
+        existing_roster = await load_roster_message(guild)
+
+        # If we have no existing roster, then nothing else matters
+        if not existing_roster:
             continue
 
-        roster = await Roster.from_roster_info(roster_info)
-
-        # We need to add the view to the client so it can process the interactions
-        ctx.client.add_view(roster.view)
-
-
+        # Then we load any reminders
 
 async def cli():
     """Command line interface.

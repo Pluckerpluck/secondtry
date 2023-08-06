@@ -8,6 +8,8 @@ from secondtry.roster import (
     MAYBE_EMOJI,
     DEFAULT_EMOJI,
     Roster,
+    send_reminder,
+    send_reminders
 )
 
 
@@ -24,10 +26,19 @@ async def print_roster(interaction: discord.Interaction, channel: discord.TextCh
             "You must run this command in a text channel.", ephemeral=True
         )
         return
+    
+    # Ensure we have a static role set
+    assert interaction.guild is not None
+    static_role = await datastore.get_static_role(interaction.guild)
+
+    if static_role is None:
+        await interaction.response.send_message(
+            "You must set a static role first.", ephemeral=True
+        )
+        return
 
     # Check if an existing roster message exists
     # If it does, we delete it
-    assert interaction.guild is not None
     roster_message_id = await datastore.get_roster_message_id(interaction.guild)
     was_deleted = False
     if roster_message_id is not None:
@@ -100,10 +111,60 @@ async def unavailable(interaction: discord.Interaction):
 
 
 @ctx.command(name="reset", description="Reset all statuses to default.")
+@ctx.is_admin
 async def reset(interaction: discord.Interaction):
     """Reset all statuses to default."""
     assert interaction.guild is not None
     await datastore.reset_members(interaction.guild)
     await interaction.response.send_message(
         "All statuses reset.", ephemeral=True, delete_after=5
+    )
+
+
+@ctx.command(name="remind", description="Send a reminder to all members who haven't responded yet.")
+@ctx.is_admin
+async def remind_all(interaction: discord.Interaction):
+    """Send a reminder to all users from the guild."""
+    assert interaction.guild is not None
+
+    # This can take a bit, so we declare the response as deferred
+    await interaction.response.defer(ephemeral=True)
+
+    reminded = await send_reminders(interaction.guild)
+    await interaction.response.send_message(
+        f"Reminder sent to: {[x.mention for x in reminded]}", ephemeral=True
+    )
+
+@ctx.command(name="staticrole", description="Send the role required to be a static member.")
+@ctx.is_admin
+async def static_role(interaction: discord.Interaction, role: discord.Role):
+    """Send the role required to be a static member."""
+    assert interaction.guild is not None
+    await datastore.set_static_role(interaction.guild, role)
+
+    # Update the roster
+    await datastore.force_update(interaction.guild)
+
+
+@ctx.command(name="adminrole", description="Send the role required to run admin commands.")
+@ctx.is_admin
+async def admin_role(interaction: discord.Interaction, role: discord.Role):
+    """Send the role required to run admin commands."""
+    assert interaction.guild is not None
+    await datastore.set_admin_role(interaction.guild, role)
+    await interaction.response.send_message(
+        f"Admin role set to: {role.mention}", ephemeral=True, delete_after=5
+    )
+
+
+
+@ctx.command(name="testreminder", description="Test reminder.")
+@ctx.is_admin
+async def test_reminder(interaction: discord.Interaction, member: discord.Member):
+    """Test reminder."""
+    assert interaction.guild is not None
+    assert isinstance(interaction.user, discord.Member)
+    await send_reminder(member)
+    await interaction.response.send_message(
+        "Test sent.", ephemeral=True, delete_after=5
     )

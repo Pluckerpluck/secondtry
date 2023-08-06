@@ -5,6 +5,9 @@ from typing import Coroutine, Callable, cast
 from secondtry.context import RosterMessageInfo
 from secondtry import datastore
 import secondtry.context as ctx
+from secondtry.cronjobs import WeeklyCronJob, Day
+
+import functools
 
 import logging
 
@@ -30,11 +33,96 @@ async def find_members_with_role_by_name(guild: discord.Guild, role_name: str):
 TCallback = Callable[[discord.Interaction], Coroutine]
 
 
+async def send_reminder(member: discord.Member):
+    """Send a reminder to a member."""
+
+    # Generate a set of callbacks for the buttons
+    async def on_accept(member: discord.Member, interaction: discord.Interaction):
+        """Set the member's status to available."""
+        await datastore.update_member_status(member.guild, member, AVAILABLE_EMOJI)
+        await interaction.response.send_message(
+            "Thank you. You have marked yourself as available."
+        )
+
+    async def on_maybe(member: discord.Member, interaction: discord.Interaction):
+        """Set the member's status to maybe."""
+        await datastore.update_member_status(member.guild, member, MAYBE_EMOJI)
+        await interaction.response.send_message(
+            "Thank you. You have marked yourself as maybe."
+        )
+
+    async def on_reject(member: discord.Member, interaction: discord.Interaction):
+        """Set the member's status to unavailable."""
+        await datastore.update_member_status(member.guild, member, UNAVAILABLE_EMOJI)
+        await interaction.response.send_message(
+            "Thank you. You have marked yourself as unavailable."
+        )
+
+    # Bind the current member to create partials
+    on_accept_member = functools.partial(on_accept, member)
+    on_maybe_member = functools.partial(on_maybe, member)
+    on_reject_member = functools.partial(on_reject, member)
+
+    # Create the view
+    view = RosterButtons(
+        on_accept_member,
+        on_maybe_member,
+        on_reject_member,
+        timeout=60 * 60 * 24,
+    )
+
+    await member.send(
+        "Hey! You haven't set your status for this week's raid. Please register your status here: ",
+        view=view,
+    )
+
+async def send_reminders(guild: discord.Guild):
+    """Send the reminder, returns who was reminded."""
+    assert guild is not None
+
+    # Get current statuses
+    member_statuses = await datastore.get_member_statues(guild)
+
+    # Filter only those with default status
+    member_ids = [
+        member_id
+        for member_id, status in member_statuses.items()
+        if status == DEFAULT_EMOJI
+    ]
+
+    reminded_names: list[discord.Member] = []
+
+    # Send those members a reminder
+    for member_id in member_ids:
+        member = guild.get_member(int(member_id))
+
+        if member is None:
+            log.warning(
+                f"Member {member_id} not found in guild {guild.id} when sending reminder."
+            )
+            continue
+
+        # Add the name
+        reminded_names.append(member.display_name or "Anonymous")
+
+        await send_reminder(member)
+
+    return reminded_names
+
+async def create_reminder_cronjob(
+    guild: discord.Guild, day: Day, hour: int, minute: int
+):
+    """Create a cronjob to send reminders."""
+    assert guild is not None
+    task = functools.partial(send_reminders, guild)
+    return WeeklyCronJob(day, hour, minute, task)
+
+
 class RosterButtons(discord.ui.View):
     """Buttons for the roster message."""
 
-    def __init__(self, on_accept: TCallback, on_maybe: TCallback, on_reject: TCallback):
-        super().__init__(timeout=None)
+    def __init__(self, on_accept: TCallback, on_maybe: TCallback, on_reject: TCallback, timeout: float | None = None):
+        super().__init__(timeout=timeout)
         self.on_accept = on_accept
         self.on_maybe = on_maybe
         self.on_reject = on_reject
@@ -89,7 +177,11 @@ class Roster:
             await self.update_roster_message()
 
     async def update_member_status(
-        self, member: discord.Member, status: str | None, push: bool = True, update: bool = True
+        self,
+        member: discord.Member,
+        status: str | None,
+        push: bool = True,
+        update: bool = True,
     ):
         """Update the member's status."""
         assert self._guild is not None
@@ -127,17 +219,21 @@ class Roster:
     async def create_status_list(self):
         """Create a list of members with their statuses."""
         assert self._guild is not None
-        static_members = await find_members_with_role_by_name(self._guild, ROLE_NAME)
+        role = await datastore.get_static_role(self._guild)
+        
+        assert role is not None
 
         # Add any members that are not in the database
-        for member in static_members:
+        for member in role.members:
             if str(member.id) not in self.member_statuses:
-                await datastore.update_member_status(self._guild, member, DEFAULT_EMOJI, quiet=True)
+                await datastore.update_member_status(
+                    self._guild, member, DEFAULT_EMOJI, quiet=True
+                )
                 self.member_statuses[str(member.id)] = DEFAULT_EMOJI
 
         names = "\n".join(
             f"- {member.display_name}: {self.member_statuses[str(member.id)] }"
-            for member in static_members
+            for member in role.members
         )
 
         return names
@@ -219,49 +315,3 @@ class Roster:
         await roster.set_guild(message.guild)
 
         return roster
-
-
-# self.member_statuses[interaction.user.id] = "✅"
-# self.member_statuses[interaction.user.id] = "❔"
-# self.member_statuses[interaction.user.id] = "❌"
-
-
-# class RosterButtons(discord.ui.View):
-#     """Buttons for the roster message."""
-#     def __init__(self):
-#         super().__init__(timeout=None)
-
-
-#     @discord.ui.button(label="Available", style=discord.ButtonStyle.green, custom_id="rosterButtons_accept")
-#     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-#         """Set the member's status to available."""
-#         assert interaction.guild is not None
-#         handler = _HANDLERS.get(interaction.guild.id)
-
-#         if handler is None:
-#             return await interaction.response.send_message("No roster registered for this guild!", ephemeral=True)
-
-#         await handler.on_accept(interaction)
-
-#     @discord.ui.button(label="Maybe", style=discord.ButtonStyle.blurple, custom_id="rosterButtons_maybe")
-#     async def maybe(self, interaction: discord.Interaction, button: discord.ui.Button):
-#         """Set the member's status to maybe."""
-#         assert interaction.guild is not None
-#         handler = _HANDLERS.get(interaction.guild.id)
-
-#         if handler is None:
-#             return await interaction.response.send_message("No roster registered for this guild!", ephemeral=True)
-
-#         await handler.on_maybe(interaction)
-
-
-#     @discord.ui.button(label="Unavailable", style=discord.ButtonStyle.red, custom_id="rosterButtons_reject")
-#     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-#         """Set the member's status to unavailable."""
-#         assert interaction.guild is not None
-#         handler = _HANDLERS.get(interaction.guild.id)
-
-#         if handler is None:
-#             return await interaction.response.send_message("No roster registered for this guild!", ephemeral=True)
-
-#         await handler.on_reject(interaction)

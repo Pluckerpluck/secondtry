@@ -9,7 +9,11 @@ import functools
 import os
 
 import logging
+
+from secondtry import datastore
+
 log = logging.getLogger(__name__)
+
 
 class RosterMessageInfo(typing.TypedDict):
     guild_id: int
@@ -34,7 +38,9 @@ def event(func):
     We use this instead of the client.event decorator because we need to
     register multiple event handlers for the same event.
     """
-    log.info(f"Registering event {func.__name__} [{func.__code__.co_filename}:{func.__code__.co_firstlineno}]]")
+    log.info(
+        f"Registering event {func.__name__} [{func.__code__.co_filename}:{func.__code__.co_firstlineno}]]"
+    )
 
     # If the event is not in the dict, add it
     if func.__name__ not in _events:
@@ -56,6 +62,49 @@ def event(func):
     _events[func.__name__].append(func)
 
     return func
+
+
+def is_bot_owner(func):
+    """Check if the user is the bot owner."""
+
+    @functools.wraps(func)
+    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
+        """Wrapper."""
+        if interaction.user.id != int(os.environ["BOT_OWNER"]):
+            return await interaction.response.send_message(
+                "You are not the bot owner.", ephemeral=True, delete_after=5
+            )
+
+        return await func(interaction, *args, **kwargs)
+
+    return wrapper
+
+
+def is_admin(func):
+    """Check if the user is an admin (or bot owner)."""
+
+    @functools.wraps(func)
+    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
+        """Wrapper."""
+        if interaction.guild is None:
+            return await interaction.response.send_message(
+                "This command can only be used in a guild."
+            )
+
+        admin_role = await datastore.get_admin_role(interaction.guild)
+        
+        member = interaction.user
+        assert isinstance(member, discord.Member)
+
+        if member.id != int(os.environ["BOT_OWNER"]) and admin_role not in member.roles:
+            return await interaction.response.send_message(
+                "You are not an admin.", ephemeral=True, delete_after=5
+            )
+
+        return await func(interaction, *args, **kwargs)
+
+    return wrapper
+
 
 @event
 async def on_ready():
