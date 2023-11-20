@@ -114,6 +114,13 @@ async def on_ready():
 command = tree.command
 
 
+def new_group(name: str, description: str):
+    """Create a new command group."""
+    group = discord.app_commands.Group(name=name, description=description)
+    tree.add_command(group)
+    return group
+
+
 def run():
     """Run the bot."""
     client.run(

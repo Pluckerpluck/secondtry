@@ -1,7 +1,10 @@
+from dataclasses import dataclass
 import typing
 import discord
 import tinydb
 from tinydb.table import Document
+
+from secondtry.cronjobs import Day
 
 
 db = tinydb.TinyDB("data/datastore.json")
@@ -140,23 +143,99 @@ async def get_member_statues(guild: discord.Guild) -> dict[str, str]:
     return doc.get("member_statuses", {})
 
 
-async def set_reminder_time(guild: discord.Guild, day: str, hour: int, minute: int):
-    """Set the reminder time."""
-    doc = await get_guild_doc(guild)
-    doc["reminder_time"] = {"day": day, "hour": hour, "minute": minute}
-    db.update(doc, doc_ids=[guild.id])
-
-
-class ReminderTime(typing.TypedDict):
-    day: str
+@dataclass
+class ScheduledTask():
+    id: str
+    day: Day
     hour: int
     minute: int
 
+async def set_reminder_time(guild: discord.Guild, id: str, day: Day, hour: int, minute: int):
+    """Set the reminder time."""
+    doc = await get_guild_doc(guild)
+    doc["weekly_reminder"] = {"id": id, "day": day.value, "hour": hour, "minute": minute}
+    db.update(doc, doc_ids=[guild.id])
 
-async def get_reminder_time(guild: discord.Guild) -> ReminderTime | None:
+
+async def get_reminder_time(guild: discord.Guild) -> ScheduledTask | None:
     """Get the reminder time."""
     doc = await get_guild_doc(guild)
-    return doc.get("reminder_time")
+    reminder_timer = doc.get("weekly_reminder")
+
+    if reminder_timer is None:
+        return None
+
+    return ScheduledTask(
+        id=reminder_timer["id"],
+        day=Day(reminder_timer["day"]),
+        hour=reminder_timer["hour"],
+        minute=reminder_timer["minute"],
+    )
+
+
+async def delete_reminder(guild: discord.Guild) -> bool:
+    """Get the reminder time.
+    
+    Returns
+    -------
+    bool
+        Whether the reminder time was deleted.
+    """
+    doc = await get_guild_doc(guild)
+    reminder_timer = doc.get("reminder_time")
+
+    if reminder_timer is None:
+        return False
+
+    # Delete the reminder time
+    del doc["reminder_time"]
+    db.update(doc, doc_ids=[guild.id])
+
+    return True
+
+
+async def set_reset_time(guild: discord.Guild, id: str, day: Day, hour: int, minute: int):
+    """Set the reset time."""
+    doc = await get_guild_doc(guild)
+    doc["weekly_reset"] = {"id": id, "day": day.value, "hour": hour, "minute": minute}
+    db.update(doc, doc_ids=[guild.id])
+
+
+async def get_reset_time(guild: discord.Guild) -> ScheduledTask | None:
+    """Get the reset time."""
+    doc = await get_guild_doc(guild)
+    reset_timer = doc.get("weekly_reset")
+
+    if reset_timer is None:
+        return None
+
+    return ScheduledTask(
+        id=reset_timer["id"],
+        day=Day(reset_timer["day"]),
+        hour=reset_timer["hour"],
+        minute=reset_timer["minute"],
+    )
+
+
+async def delete_reset(guild: discord.Guild) -> bool:
+    """Get the reset time.
+    
+    Returns
+    -------
+    bool
+        Whether the reset time was deleted.
+    """
+    doc = await get_guild_doc(guild)
+    reset_timer = doc.get("reset_time")
+
+    if reset_timer is None:
+        return False
+
+    # Delete the reset time
+    del doc["reset_time"]
+    db.update(doc, doc_ids=[guild.id])
+
+    return True
 
 
 async def set_static_role(guild: discord.Guild, role: discord.Role):

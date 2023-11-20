@@ -1,6 +1,7 @@
-from secondtry import datastore
+from secondtry import cronjobs, datastore
 
 import discord
+from secondtry import roster
 import secondtry.context as ctx
 from secondtry.roster import (
     AVAILABLE_EMOJI,
@@ -121,6 +122,30 @@ async def reset(interaction: discord.Interaction):
     )
 
 
+reminder_group = ctx.new_group("reminder", "Reminder commands.")
+
+@reminder_group.command(name="set", description="Set the reminder time.")
+@ctx.is_admin
+async def set_reminder(interaction: discord.Interaction, day: cronjobs.Day, hour: int, minute: int):
+    """Send a reminder to all users from the guild."""
+    assert interaction.guild is not None
+
+    current_reminder = await datastore.get_reminder_time(interaction.guild)
+
+    if current_reminder is not None:
+        cronjobs.remove_job(current_reminder.id)
+
+    # Schedule the cronjob
+    new_id = cronjobs.add_weekly_job(day, hour, minute, roster.cron_send_reminder, (interaction.guild,))
+
+    # Set the cronjob
+    await datastore.set_reminder_time(interaction.guild, new_id, day, hour, minute)
+
+    await interaction.response.send_message(
+        f"Reminder set to: {day.name} {hour}:{minute}", ephemeral=True, delete_after=5
+    )
+
+
 @ctx.command(name="remind", description="Send a reminder to all members who haven't responded yet.")
 @ctx.is_admin
 async def remind_all(interaction: discord.Interaction):
@@ -131,7 +156,7 @@ async def remind_all(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
     reminded = await send_reminders(interaction.guild)
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f"Reminder sent to: {[x.mention for x in reminded]}", ephemeral=True
     )
 

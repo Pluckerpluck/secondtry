@@ -4,6 +4,7 @@ import logging
 from secondtry.cronjobs import start_cron_jobs, add_weekly_job, WeeklyCronJob
 
 logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
 import aioconsole
 import discord
@@ -12,7 +13,7 @@ import discord
 # This is necessary to register them
 import secondtry.commands
 import secondtry.context as ctx
-from secondtry.roster import Roster
+from secondtry.roster import Roster, cron_send_reminder
 from secondtry import datastore
 import os
 
@@ -30,14 +31,6 @@ async def load_roster_message(guild: discord.Guild) -> bool:
 
     return True
 
-async def schedule_reminder_cronjob(guild: discord.Guild):
-    reminder_timer = await datastore.get_reminder_time(guild)
-
-    if reminder_timer is None:
-        return
-    
-    # Schedule the cronjob
-    await add_weekly_job(reminder_timer.day, reminder_timer.hour, reminder_timer.minute, None)
 
 @ctx.event
 async def on_ready():
@@ -56,6 +49,25 @@ async def on_ready():
             continue
 
         # Then we load any reminders
+        weekly_reminder = await datastore.get_reminder_time(guild)
+        if weekly_reminder is not None:
+
+            new_id = add_weekly_job(
+                weekly_reminder.day,
+                weekly_reminder.hour,
+                weekly_reminder.minute,
+                cron_send_reminder,
+                (guild,)
+            )
+            log.info(f"Adding weekly reminder for {guild.name}: {new_id}")
+
+            # Save the new ID into our datastore
+            await datastore.set_reminder_time(
+                guild, new_id, weekly_reminder.day, weekly_reminder.hour, weekly_reminder.minute
+            )
+
+
+        
 
 async def cli():
     """Command line interface.

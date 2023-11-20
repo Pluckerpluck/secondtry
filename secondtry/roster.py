@@ -87,7 +87,7 @@ async def send_reminders(guild: discord.Guild):
     member_ids = [
         member_id
         for member_id, status in member_statuses.items()
-        if status == DEFAULT_EMOJI
+        if status == DEFAULT_EMOJI or status == MAYBE_EMOJI
     ]
 
     reminded_names: list[discord.Member] = []
@@ -103,7 +103,7 @@ async def send_reminders(guild: discord.Guild):
             continue
 
         # Add the name
-        reminded_names.append(member.display_name or "Anonymous")
+        reminded_names.append(member)
 
         await send_reminder(member)
 
@@ -315,3 +315,14 @@ class Roster:
         await roster.set_guild(message.guild)
 
         return roster
+
+#        ##  #######  ########   ######  
+#        ## ##     ## ##     ## ##    ## 
+#        ## ##     ## ##     ## ##       
+#        ## ##     ## ########   ######  
+#  ##    ## ##     ## ##     ##       ## 
+#  ##    ## ##     ## ##     ## ##    ## 
+#   ######   #######  ########   ######  
+
+async def cron_send_reminder(guild: discord.Guild):
+    await send_reminders(guild)
