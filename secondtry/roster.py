@@ -220,7 +220,7 @@ class Roster:
         """Create a list of members with their statuses."""
         assert self._guild is not None
         role = await datastore.get_static_role(self._guild)
-        
+
         assert role is not None
 
         # Add any members that are not in the database
@@ -316,13 +316,16 @@ class Roster:
 
         return roster
 
-#        ##  #######  ########   ######  
-#        ## ##     ## ##     ## ##    ## 
-#        ## ##     ## ##     ## ##       
-#        ## ##     ## ########   ######  
-#  ##    ## ##     ## ##     ##       ## 
-#  ##    ## ##     ## ##     ## ##    ## 
-#   ######   #######  ########   ######  
+#        ##  #######  ########   ######
+#        ## ##     ## ##     ## ##    ##
+#        ## ##     ## ##     ## ##
+#        ## ##     ## ########   ######
+#  ##    ## ##     ## ##     ##       ##
+#  ##    ## ##     ## ##     ## ##    ##
+#   ######   #######  ########   ######
 
 async def cron_send_reminder(guild: discord.Guild):
     await send_reminders(guild)
+
+async def cron_reset_roster(guild: discord.Guild):
+    await datastore.reset_members(guild)

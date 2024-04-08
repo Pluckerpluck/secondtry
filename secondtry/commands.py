@@ -27,7 +27,7 @@ async def print_roster(interaction: discord.Interaction, channel: discord.TextCh
             "You must run this command in a text channel.", ephemeral=True
         )
         return
-    
+
     # Ensure we have a static role set
     assert interaction.guild is not None
     static_role = await datastore.get_static_role(interaction.guild)
@@ -145,6 +145,28 @@ async def set_reminder(interaction: discord.Interaction, day: cronjobs.Day, hour
         f"Reminder set to: {day.name} {hour}:{minute}", ephemeral=True, delete_after=5
     )
 
+reset_group = ctx.new_group("reset", "Reset commands.")
+
+@reset_group.command(name="set", description="Set the roster reset time.")
+@ctx.is_admin
+async def set_reset(interaction: discord.Interaction, day: cronjobs.Day, hour: int, minute: int):
+    """Set the roster reset time."""
+    assert interaction.guild is not None
+
+    current_reset = await datastore.get_reset_time(interaction.guild)
+
+    if current_reset is not None:
+        cronjobs.remove_job(current_reset.id)
+
+    # Schedule the cronjob
+    new_id = cronjobs.add_weekly_job(day, hour, minute, roster.cron_reset_roster, (interaction.guild,))
+
+    # Set the cronjob
+    await datastore.set_reset_time(interaction.guild, new_id, day, hour, minute)
+
+    await interaction.response.send_message(
+        f"Roster reset set to: {day.name} {hour}:{minute}", ephemeral=True, delete_after=5
+    )
 
 @ctx.command(name="remind", description="Send a reminder to all members who haven't responded yet.")
 @ctx.is_admin

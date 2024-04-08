@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from secondtry.cronjobs import start_cron_jobs, add_weekly_job, WeeklyCronJob
+from secondtry.cronjobs import start_cron_jobs, add_weekly_job, WeeklyCronJob, clear_jobs
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -35,10 +35,16 @@ async def load_roster_message(guild: discord.Guild) -> bool:
 @ctx.event
 async def on_ready():
     """When the bot is ready, start the CLI and hook up the roster views."""
+    log.info("Preparing bot...")
+
     if os.environ.get("CLI") == "1":
         asyncio.create_task(cli())
 
     asyncio.create_task(start_cron_jobs())
+
+
+    # Clear up any existing cron jobs (if on_ready runs twice)
+    clear_jobs()
 
     for guild in ctx.client.guilds:
         # First we load any active roster messages
@@ -66,12 +72,14 @@ async def on_ready():
                 guild, new_id, weekly_reminder.day, weekly_reminder.hour, weekly_reminder.minute
             )
 
+    log.info("Bot ready!")
 
-        
+
+
 
 async def cli():
     """Command line interface.
-    
+
     Used to sync the command tree with Discord,
     and to exit the program.
     """

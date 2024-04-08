@@ -78,7 +78,7 @@ class WeeklyCronJob(CronJob):
         # If we last ran the task already today, we don't need to run it again
         if self.last_run is not None and self.last_run.date() == datetime.now().date():
             return False
-        
+
         # We're only going to run if it's the right day of the week
         if self.day.value != datetime.now().weekday():
             return False
@@ -94,7 +94,7 @@ JOBS: dict[str, CronJob] = {}
 
 def add_daily_job(hour: int, minute: int, task: Callable[..., Coroutine], args: tuple = ()) -> str:
     """Add a daily job."""
-    
+
     # Each task is given a random ID
     id_ = str(uuid4())
     JOBS[id_] = DailyCronJob(hour, minute, task, args)
@@ -103,7 +103,7 @@ def add_daily_job(hour: int, minute: int, task: Callable[..., Coroutine], args: 
 
 def add_weekly_job(day: Day, hour: int, minute: int, task: Callable[..., Coroutine], args: tuple = ()) -> str:
     """Add a weekly job."""
-    
+
     # Each task is given a random ID
     id_ = str(uuid4())
     JOBS[id_] = WeeklyCronJob(day, hour, minute, task, args)
@@ -114,6 +114,11 @@ def remove_job(id: str):
     """Remove a job."""
     if id in JOBS:
         del JOBS[id]
+
+
+def clear_jobs():
+    """Clear all jobs."""
+    JOBS.clear()
 
 
 async def start_cron_jobs():
