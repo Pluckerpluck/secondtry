@@ -232,3 +232,4 @@ async def sync(interaction: discord.Interaction):
     log.info("Syncing...")
     await ctx.tree.sync()
     log.info("Synced!")
+    await interaction.response.send_message("Synced!", ephemeral=True, delete_after=5)
