@@ -111,17 +111,6 @@ async def unavailable(interaction: discord.Interaction):
     )
 
 
-@ctx.command(name="reset", description="Reset all statuses to default.")
-@ctx.is_admin
-async def reset(interaction: discord.Interaction):
-    """Reset all statuses to default."""
-    assert interaction.guild is not None
-    await datastore.reset_members(interaction.guild)
-    await interaction.response.send_message(
-        "All statuses reset.", ephemeral=True, delete_after=5
-    )
-
-
 reminder_group = ctx.new_group("reminder", "Reminder commands.")
 
 @reminder_group.command(name="set", description="Set the reminder time.")
@@ -167,6 +156,18 @@ async def set_reset(interaction: discord.Interaction, day: cronjobs.Day, hour: i
     await interaction.response.send_message(
         f"Roster reset set to: {day.name} {hour}:{minute}", ephemeral=True, delete_after=5
     )
+
+
+@reset_group.command(name="now", description="Reset all statuses to default.")
+@ctx.is_admin
+async def reset(interaction: discord.Interaction):
+    """Reset all statuses to default."""
+    assert interaction.guild is not None
+    await datastore.reset_members(interaction.guild)
+    await interaction.response.send_message(
+        "All statuses reset.", ephemeral=True, delete_after=5
+    )
+
 
 @ctx.command(name="remind", description="Send a reminder to all members who haven't responded yet.")
 @ctx.is_admin
