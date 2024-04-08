@@ -13,6 +13,9 @@ from secondtry.roster import (
     send_reminders
 )
 
+import logging
+
+log = logging.getLogger(__name__)
 
 @ctx.command(
     name="roster",
@@ -220,3 +223,12 @@ async def test_reminder(interaction: discord.Interaction, member: discord.Member
     await interaction.response.send_message(
         "Test sent.", ephemeral=True, delete_after=5
     )
+
+
+@ctx.command(name="sync", description="Sync the command tree.")
+@ctx.is_bot_owner
+async def sync(interaction: discord.Interaction):
+    """Sync the command tree, updating the commands on Discord."""
+    log.info("Syncing...")
+    await ctx.tree.sync()
+    log.info("Synced!")
