@@ -13,9 +13,12 @@ import discord
 # This is necessary to register them
 import secondtry.commands
 import secondtry.context as ctx
-from secondtry.roster import Roster, cron_send_reminder
+from secondtry.roster import Roster, cron_send_reminder, cron_reset_roster
 from secondtry import datastore
 import os
+
+# Flag to ensure background tasks only start once
+_tasks_started = False
 
 async def load_roster_message(guild: discord.Guild) -> bool:
     roster_info = await datastore.get_roster_message_id(guild)
@@ -35,13 +38,17 @@ async def load_roster_message(guild: discord.Guild) -> bool:
 @ctx.event
 async def on_ready():
     """When the bot is ready, start the CLI and hook up the roster views."""
+    global _tasks_started
+
     log.info("Preparing bot...")
 
-    if os.environ.get("CLI") == "1":
-        asyncio.create_task(cli())
+    # Start background tasks only once
+    if not _tasks_started:
+        if os.environ.get("CLI") == "1":
+            asyncio.create_task(cli())
 
-    asyncio.create_task(start_cron_jobs())
-
+        asyncio.create_task(start_cron_jobs())
+        _tasks_started = True
 
     # Clear up any existing cron jobs (if on_ready runs twice)
     clear_jobs()
@@ -70,6 +77,24 @@ async def on_ready():
             # Save the new ID into our datastore
             await datastore.set_reminder_time(
                 guild, new_id, weekly_reminder.day, weekly_reminder.hour, weekly_reminder.minute
+            )
+
+        # Then we load any reset jobs
+        weekly_reset = await datastore.get_reset_time(guild)
+        if weekly_reset is not None:
+
+            new_id = add_weekly_job(
+                weekly_reset.day,
+                weekly_reset.hour,
+                weekly_reset.minute,
+                cron_reset_roster,
+                (guild,)
+            )
+            log.info(f"Adding weekly reset for {guild.name}: {new_id}")
+
+            # Save the new ID into our datastore
+            await datastore.set_reset_time(
+                guild, new_id, weekly_reset.day, weekly_reset.hour, weekly_reset.minute
             )
 
     log.info("Bot ready!")
